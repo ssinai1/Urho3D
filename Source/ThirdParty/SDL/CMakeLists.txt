@@ -1,18 +1,50 @@
-# Modified by Yao Wei Tjong for Urho3D
+#
+# Simple DirectMedia Layer
+# Copyright (C) 1997-2016 Sam Lantinga <slouken@libsdl.org>
+#
+# This software is provided 'as-is', without any express or implied
+# warranty.  In no event will the authors be held liable for any damages
+# arising from the use of this software.
+#
+# Permission is granted to anyone to use this software for any purpose,
+# including commercial applications, and to alter it and redistribute it
+# freely, subject to the following restrictions:
+#
+# 1. The origin of this software must not be misrepresented; you must not
+# claim that you wrote the original software. If you use this software
+# in a product, an acknowledgment in the product documentation would be
+# appreciated but is not required.
+# 2. Altered source versions must be plainly marked as such, and must not be
+# misrepresented as being the original software.
+# 3. This notice may not be removed or altered from any source distribution.
+#
+
+# Modified by Yao Wei Tjong for Urho3D, the modified portion is licensed under below license
+
+#
+# Copyright (c) 2008-2016 the Urho3D project.
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+# THE SOFTWARE.
+#
 
 # Urho3D - define target name
 set (TARGET_NAME SDL)
-
-# Urho3D - use Emscripten's own SDL2 port
-if (WEB)
-  # Emscripten has its own SDL2 port, so just create a custom target to:
-  #  1) Fetch this SDL2 port from its GitHub repository
-  #  2) Install SDL2 headers to the build tree in the post-build step (Note: current configuration uses our own SDL2 header files instead of the ones provided by Emscripten port for no special reason)
-  add_custom_target (${TARGET_NAME} ALL ${CMAKE_COMMAND} -E touch dummy.cpp && ${CMAKE_CXX_COMPILER} -s USE_SDL=2 -o dummy.html dummy.cpp && ${CMAKE_COMMAND} -E remove dummy.*)
-  set (STATIC_LIBRARY_TARGETS ${STATIC_LIBRARY_TARGETS} ${TARGET_NAME} PARENT_SCOPE)
-  install_header_files (DIRECTORY include/ DESTINATION ${DEST_INCLUDE_DIR}/ThirdParty/SDL FILES_MATCHING PATTERN *.h USE_FILE_SYMLINK)    # Note: the trailing slash is significant
-  return ()
-endif ()
 
 # Urho3D - commented out as we support both out-of- and in- source tree builds
 #if(${CMAKE_SOURCE_DIR} STREQUAL ${CMAKE_BINARY_DIR})
@@ -36,7 +68,8 @@ include(CheckCCompilerFlag)
 include(CheckTypeSize)
 include(CheckStructHasMember)
 include(CMakeDependentOption)
-include(FindPkgConfig)
+# Urho3D - bug fix - do not use pkg-config tool for detection as it only works for host environment and not for rooted environment when cross-compiling
+#include(FindPkgConfig)
 # Urho3D - append SDL's CMake module directory into our global module search path
 list (APPEND CMAKE_MODULE_PATH ${SDL2_SOURCE_DIR}/cmake)
 include(${SDL2_SOURCE_DIR}/cmake/macros.cmake)
@@ -214,6 +247,8 @@ set(SDL_CFLAGS "")
 # restore back to that afterwards. For check_function_exists() to work in
 # Emscripten, this value must be at its default value.
 set(ORIG_CMAKE_REQUIRED_FLAGS ${CMAKE_REQUIRED_FLAGS})
+# Urho3D - safe the original CMake global settings
+set(ORIG_CMAKE_REQUIRED_INCLUDES ${CMAKE_REQUIRED_INCLUDES})
 
 if(CYGWIN)
   # We build SDL on cygwin without the UNIX emulation layer
@@ -288,18 +323,23 @@ set_option(FUSIONSOUND         "Use FusionSound audio driver" OFF)
 dep_option(FUSIONSOUND_SHARED  "Dynamically load fusionsound audio support" ON "FUSIONSOUND" OFF)
 set_option(VIDEO_DUMMY         "Use dummy video driver" ON)
 set_option(VIDEO_OPENGL        "Include OpenGL support" ON)
-set_option(VIDEO_OPENGLES      "Include OpenGL ES support" ON)
+# Urho3D - hide OpenGLES option for MinGW platform because it does not have the necessary header file to build OpenGLES video driver
+dep_option(VIDEO_OPENGLES      "Include OpenGL ES support" ON "NOT MINGW" OFF)
 set_option(PTHREADS            "Use POSIX threads for multi-threading" ${SDL_PTHREADS_ENABLED_BY_DEFAULT})
 dep_option(PTHREADS_SEM        "Use pthread semaphores" ON "PTHREADS" OFF)
 set_option(SDL_DLOPEN          "Use dlopen for shared object loading" ${SDL_DLOPEN_ENABLED_BY_DEFAULT})
 set_option(OSS                 "Support the OSS audio API" ${UNIX_SYS})
-set_option(ALSA                "Support the ALSA audio API" ${UNIX_SYS})
+# Urho3D - hide ALSA option for Android platform (TODO: probably can consider to use external/tinyalsa implementation for Android)
+dep_option(ALSA                "Support the ALSA audio API" ON "UNIX_SYS AND NOT ANDROID" OFF)
 dep_option(ALSA_SHARED         "Dynamically load ALSA audio support" ON "ALSA" OFF)
-set_option(ESD                 "Support the Enlightened Sound Daemon" ${UNIX_SYS})
+# Urho3D - hide ESD option for Android platform
+dep_option(ESD                 "Support the Enlightened Sound Daemon" ON "UNIX_SYS AND NOT ANDROID" OFF)
 dep_option(ESD_SHARED          "Dynamically load ESD audio support" ON "ESD" OFF)
-set_option(PULSEAUDIO          "Use PulseAudio" ${UNIX_SYS})
+# Urho3D - hide PulseAudio option for Android platform
+dep_option(PULSEAUDIO          "Use PulseAudio" ON "UNIX_SYS AND NOT ANDROID" OFF)
 dep_option(PULSEAUDIO_SHARED   "Dynamically load PulseAudio support" ON "PULSEAUDIO" OFF)
-set_option(ARTS                "Support the Analog Real Time Synthesizer" ${UNIX_SYS})
+# Urho3D - hide aRts option for Android platform
+dep_option(ARTS                "Support the Analog Real Time Synthesizer" ON "UNIX_SYS AND NOT ANDROID" OFF)
 dep_option(ARTS_SHARED         "Dynamically load aRts audio support" ON "ARTS" OFF)
 set_option(NAS                 "Support the NAS audio API" ${UNIX_SYS})
 set_option(NAS_SHARED          "Dynamically load NAS audio API" ${UNIX_SYS})
@@ -308,12 +348,15 @@ set_option(RPATH               "Use an rpath when linking SDL" ${UNIX_SYS})
 set_option(CLOCK_GETTIME       "Use clock_gettime() instead of gettimeofday()" OFF)
 set_option(INPUT_TSLIB         "Use the Touchscreen library for input" ${UNIX_SYS})
 set_option(VIDEO_X11           "Use X11 video driver" ${UNIX_SYS})
-set_option(VIDEO_WAYLAND       "Use Wayland video driver" ${UNIX_SYS})
+# Urho3D - hide Wayland option for Android and RPI platforms
+dep_option(VIDEO_WAYLAND       "Use Wayland video driver" ON "UNIX_SYS AND NOT ANDROID AND NOT RPI" OFF)
 dep_option(WAYLAND_SHARED      "Dynamically load Wayland support" ON "VIDEO_WAYLAND" OFF)
 dep_option(VIDEO_WAYLAND_QT_TOUCH  "QtWayland server support for Wayland video driver" ON "VIDEO_WAYLAND" OFF)
-set_option(VIDEO_MIR           "Use Mir video driver" ${UNIX_SYS})
+# Urho3D - hide Mir option for Android and RPI platforms
+dep_option(VIDEO_MIR           "Use Mir video driver" ON "UNIX_SYS AND NOT ANDROID AND NOT RPI" OFF)
 dep_option(MIR_SHARED          "Dynamically load Mir support" ON "VIDEO_MIR" OFF)
-set_option(VIDEO_RPI           "Use Raspberry Pi video driver" ${UNIX_SYS})
+# Urho3D - only enable VIDEO_RPI on Raspberry-Pi platform
+dep_option(VIDEO_RPI           "Use Raspberry Pi video driver" ON "RPI" OFF)
 dep_option(X11_SHARED          "Dynamically load X11 support" ON "VIDEO_X11" OFF)
 set(SDL_X11_OPTIONS Xcursor Xinerama XInput Xrandr Xscrnsaver XShape Xvm)
 foreach(_SUB ${SDL_X11_OPTIONS})
@@ -736,8 +779,9 @@ endif()
 if(ANDROID)
   file(GLOB ANDROID_CORE_SOURCES ${SDL2_SOURCE_DIR}/src/core/android/*.c)
   set(SOURCE_FILES ${SOURCE_FILES} ${ANDROID_CORE_SOURCES})
-  file(GLOB ANDROID_MAIN_SOURCES ${SDL2_SOURCE_DIR}/src/main/android/*.c)
-  set(SOURCE_FILES ${SOURCE_FILES} ${ANDROID_MAIN_SOURCES})
+  # Urho3D - bug fix - SDL_android_main.c will be added later when setting up actual Android targets
+#  file(GLOB ANDROID_MAIN_SOURCES ${SDL2_SOURCE_DIR}/src/main/android/*.c)
+#  set(SOURCE_FILES ${SOURCE_FILES} ${ANDROID_MAIN_SOURCES})
   if(SDL_AUDIO)
     set(SDL_AUDIO_DRIVER_ANDROID 1)
     file(GLOB ANDROID_AUDIO_SOURCES ${SDL2_SOURCE_DIR}/src/audio/android/*.c)
@@ -899,10 +943,24 @@ elseif(UNIX AND NOT APPLE)
       set(SDL_INPUT_LINUXKD 1)
     endif()
 
-    check_include_file("libudev.h" HAVE_LIBUDEV_H)
-
-    # !!! FIXME: this needs pkg-config to find the include path, I think.
-    check_include_file("dbus/dbus.h" HAVE_DBUS_DBUS_H)
+    # Urho3D - bug fix - do not use chekc_include_file() command for detection as it only works for host environment and not for rooted environment when cross-compiling
+    find_path (HAVE_LIBUDEV_H NAMES libudev.h)
+    find_path (HAVE_DBUS_DBUS_H NAMES dbus/dbus.h PATH_SUFFIXES dbus-1.0)
+    if (URHO3D_64BIT)   # Cater for both 32/64bit Redhat-based and Debian-based distros
+      set (DBUS_INC_SEARCH_PATH /usr/lib64/dbus-1.0/include /usr/lib/x86_64-linux-gnu/dbus-1.0/include)
+    else ()
+      set (DBUS_INC_SEARCH_PATH /usr/lib/dbus-1.0/include /usr/lib/i386-linux-gnu/dbus-1.0/include)
+    endif ()
+    find_path (HAVE_DBUS_DBUS_ARCH_DEPS_H NAMES dbus/dbus-arch-deps.h PATHS ${DBUS_INC_SEARCH_PATH})
+    if (HAVE_LIBUDEV_H AND HAVE_DBUS_DBUS_H AND HAVE_DBUS_DBUS_ARCH_DEPS_H)
+      # All or nothing
+      include_directories (${HAVE_LIBUDEV_H} ${HAVE_DBUS_DBUS_H} ${HAVE_DBUS_DBUS_ARCH_DEPS_H})
+    else ()
+      foreach (VAR HAVE_LIBUDEV_H HAVE_DBUS_DBUS_H HAVE_DBUS_DBUS_ARCH_DEPS_H)
+        unset (${VAR} CACHE)
+        unset (${VAR})
+      endforeach()
+    endif ()
   endif()
 
   if(INPUT_TSLIB)
@@ -954,7 +1012,8 @@ elseif(UNIX AND NOT APPLE)
     endif()
   endif()
 
-  if(SDL_FILESYSTEM)
+  # Urho3D - bug fix - do not use Unix filesystem for Android platform
+  if(SDL_FILESYSTEM AND NOT ANDROID)
     set(SDL_FILESYSTEM_UNIX 1)
     file(GLOB FILESYSTEM_SOURCES ${SDL2_SOURCE_DIR}/src/filesystem/unix/*.c)
     set(SOURCE_FILES ${SOURCE_FILES} ${FILESYSTEM_SOURCES})
@@ -1450,6 +1509,9 @@ if(NOT WINDOWS OR CYGWIN)
 #    "${SDL2_BINARY_DIR}/SDL2.spec" @ONLY)
 endif()
 
+# Urho3D - restore the original CMake global settings
+set(CMAKE_REQUIRED_INCLUDES ${ORIG_CMAKE_REQUIRED_INCLUDES})
+
 # Urho3D - only echo the status once during initial configuration
 if (NOT SDL_INFO_ECHOED_STATUS)
   set (SDL_INFO_ECHOED_STATUS TRUE CACHE INTERNAL "SDL info echoed status")
@@ -1501,8 +1563,18 @@ endif (NOT SDL_INFO_ECHOED_STATUS)
 # Ensure that the extra cflags are used at compile time
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${EXTRA_CFLAGS}")
 
-# Urho3D - setup target as STATIC library (as the result we never use EXTRA_LDFLAGS linker flags)
-setup_library ()
+# Urho3D - use Emscripten's own SDL2 port
+if (WEB)
+  # Emscripten has its own SDL2 port, so just create a custom target to:
+  #  1) Fetch this SDL2 port from its GitHub repository
+  #  2) Install SDL2 headers to the build tree in the post-build step (Note: current configuration uses our own SDL2 header files instead of the ones provided by Emscripten port for no special reason)
+  # Note that we still have to go through the whole detection logic so that we could generate SDL_config.h correctly
+  add_custom_target (${TARGET_NAME} ALL ${CMAKE_COMMAND} -E touch dummy.cpp && ${CMAKE_CXX_COMPILER} -s USE_SDL=2 -o dummy.html dummy.cpp && ${CMAKE_COMMAND} -E remove dummy.*)
+  set (STATIC_LIBRARY_TARGETS ${STATIC_LIBRARY_TARGETS} ${TARGET_NAME} PARENT_SCOPE)
+else ()
+  # Setup target as STATIC library (as the result we never use EXTRA_LDFLAGS linker flags)
+  setup_library ()
+endif ()
 
 # Install headers for building and using the Urho3D library (install dependency for D3D9GraphicsImpl.h, OGLGraphicsImpl.h, InputEvents.h, File.h, and Cursor.h)
 install_header_files (DIRECTORY include/ DESTINATION ${DEST_INCLUDE_DIR}/ThirdParty/SDL FILES_MATCHING PATTERN *.h USE_FILE_SYMLINK)    # Note: the trailing slash is significant
@@ -1515,88 +1587,3 @@ if (ANDROID)
 endif ()
 
 # Urho3D - commented out other targets
-## Always build SDLmain
-#add_library(SDL2main STATIC ${SDLMAIN_SOURCES})
-#set(_INSTALL_LIBS "SDL2main")
-#
-#if(SDL_SHARED)
-#  add_library(SDL2 SHARED ${SOURCE_FILES})
-#  if(UNIX)
-#    set_target_properties(SDL2 PROPERTIES
-#      VERSION ${LT_VERSION}
-#      SOVERSION ${LT_REVISION}
-#      OUTPUT_NAME "SDL2-${LT_RELEASE}")
-#  else()
-#    set_target_properties(SDL2 PROPERTIES
-#      VERSION ${SDL_VERSION}
-#      SOVERSION ${LT_REVISION}
-#      OUTPUT_NAME "SDL2")
-#  endif()
-#  if(MSVC)
-#    # Don't try to link with the default set of libraries.
-#    set_target_properties(SDL2 PROPERTIES LINK_FLAGS_RELEASE "/NODEFAULTLIB")
-#    set_target_properties(SDL2 PROPERTIES LINK_FLAGS_DEBUG "/NODEFAULTLIB")
-#    set_target_properties(SDL2 PROPERTIES STATIC_LIBRARY_FLAGS "/NODEFAULTLIB")
-#  endif()
-#  set(_INSTALL_LIBS "SDL2" ${_INSTALL_LIBS})
-#  target_link_libraries(SDL2 ${EXTRA_LIBS} ${EXTRA_LDFLAGS})
-#endif()
-#
-#if(SDL_STATIC)
-#  set (BUILD_SHARED_LIBS FALSE)
-#  add_library(SDL2-static STATIC ${SOURCE_FILES})
-#  set_target_properties(SDL2-static PROPERTIES OUTPUT_NAME "SDL2")
-#  if(MSVC)
-#    set_target_properties(SDL2-static PROPERTIES LINK_FLAGS_RELEASE "/NODEFAULTLIB")
-#    set_target_properties(SDL2-static PROPERTIES LINK_FLAGS_DEBUG "/NODEFAULTLIB")
-#    set_target_properties(SDL2-static PROPERTIES STATIC_LIBRARY_FLAGS "/NODEFAULTLIB")
-#  endif()
-#  # TODO: Win32 platforms keep the same suffix .lib for import and static
-#  # libraries - do we need to consider this?
-#  set(_INSTALL_LIBS "SDL2-static" ${_INSTALL_LIBS})
-#  target_link_libraries(SDL2-static ${EXTRA_LIBS} ${EXTRA_LDFLAGS})
-#endif()
-#
-###### Installation targets #####
-#install(TARGETS ${_INSTALL_LIBS}
-#  LIBRARY DESTINATION "lib${LIB_SUFFIX}"
-#  ARCHIVE DESTINATION "lib${LIB_SUFFIX}"
-#  RUNTIME DESTINATION bin)
-#
-#file(GLOB INCLUDE_FILES ${SDL2_SOURCE_DIR}/include/*.h)
-#file(GLOB BIN_INCLUDE_FILES ${SDL2_BINARY_DIR}/include/*.h)
-#foreach(_FNAME ${BIN_INCLUDE_FILES})
-#  get_filename_component(_INCNAME ${_FNAME} NAME)
-#  list(REMOVE_ITEM INCLUDE_FILES ${SDL2_SOURCE_DIR}/include/${_INCNAME})
-#endforeach()
-#list(APPEND INCLUDE_FILES ${BIN_INCLUDE_FILES})
-#install(FILES ${INCLUDE_FILES} DESTINATION include/SDL2)
-#
-#if(NOT WINDOWS OR CYGWIN)
-#  if(SDL_SHARED)
-#    install(CODE "
-#      execute_process(COMMAND ${CMAKE_COMMAND} -E create_symlink
-#      \"libSDL2-2.0.so\" \"libSDL2.so\")")
-#    install(FILES ${SDL2_BINARY_DIR}/libSDL2.so DESTINATION "lib${LIB_SUFFIX}")
-#  endif()
-#  if(FREEBSD)
-#    # FreeBSD uses ${PREFIX}/libdata/pkgconfig
-#    install(FILES ${SDL2_BINARY_DIR}/sdl2.pc DESTINATION "libdata/pkgconfig")
-#  else()
-#    install(FILES ${SDL2_BINARY_DIR}/sdl2.pc
-#      DESTINATION "lib${LIB_SUFFIX}/pkgconfig")
-#  endif()
-#  install(PROGRAMS ${SDL2_BINARY_DIR}/sdl2-config DESTINATION bin)
-#  # TODO: what about the .spec file? Is it only needed for RPM creation?
-#  install(FILES "${SDL2_SOURCE_DIR}/sdl2.m4" DESTINATION "share/aclocal")
-#endif()
-#
-###### Uninstall target #####
-#
-#configure_file(
-#    "${CMAKE_CURRENT_SOURCE_DIR}/cmake_uninstall.cmake.in"
-#    "${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake"
-#    IMMEDIATE @ONLY)
-#
-#add_custom_target(uninstall
-#    COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake)
