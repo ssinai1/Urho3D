@@ -102,11 +102,11 @@ set(LT_VERSION "${LT_MAJOR}.${LT_AGE}.${LT_REVISION}")
 #message(STATUS "${LT_VERSION} :: ${LT_AGE} :: ${LT_REVISION} :: ${LT_CURRENT} :: ${LT_RELEASE}")
 
 # General settings & flags
-# Urho3D - commented out so that it does not mess up with our global configuration setup
-#set(LIBRARY_OUTPUT_DIRECTORY "build")
+# Urho3D - commented out LIBRARY_OUTPUT_DIRECTORY configuration so that it does not mess up with our global configuration setup
 # Check for 64 or 32 bit
 set(SIZEOF_VOIDP ${CMAKE_SIZEOF_VOID_P})
-if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+# Urho3D - bug fix - using CMAKE_SIZEOF_VOID_P is not accurate in a situation where a multilib-capable compiler is chosen and user has opted to use non-native ABI; instead using URHO3D_64BIT build option as it also captures the user intention
+if(URHO3D_64BIT)
   set(ARCH_64 TRUE)
   set(PROCESSOR_ARCH "x64")
 else()
@@ -182,9 +182,7 @@ else()
 endif()
 
 # Default option knobs
-if(APPLE OR ARCH_64)
-  set(OPT_DEF_SSEMATH ON)
-endif()
+# Urho3D - commented out OPT_DEF_SSEMATH default variable as the underyling SSEMATH build option is also being commented out by us
 if(UNIX OR MINGW OR MSYS)
   set(OPT_DEF_LIBC ON)
 endif()
@@ -309,12 +307,7 @@ option_string(ASSERTIONS "Enable internal sanity checks (auto/disabled/release/e
 set_option(LIBC                "Use the system C library" ${OPT_DEF_LIBC})
 set_option(GCC_ATOMICS         "Use gcc builtin atomics" ${USE_GCC})
 set_option(ASSEMBLY            "Enable assembly routines" ${OPT_DEF_ASM})
-set_option(SSEMATH             "Allow GCC to use SSE floating point math" ${OPT_DEF_SSEMATH})
-set_option(MMX                 "Use MMX assembly routines" ${OPT_DEF_ASM})
-set_option(3DNOW               "Use 3Dnow! MMX assembly routines" ${OPT_DEF_ASM})
-set_option(SSE                 "Use SSE assembly routines" ${OPT_DEF_ASM})
-set_option(SSE2                "Use SSE2 assembly routines" ${OPT_DEF_SSEMATH})
-set_option(ALTIVEC             "Use Altivec assembly routines" ${OPT_DEF_ASM})
+# Urho3D - commented out SSEMATH, SSE, SSE2, MMX, 3DNOW, ALTIVEC build options as they have been reclassifified as Urho3D own build options
 set_option(DISKAUDIO           "Support the disk writer audio driver" ON)
 set_option(DUMMYAUDIO          "Support the dummy audio driver" ON)
 set_option(VIDEO_DIRECTFB      "Use DirectFB video driver" OFF)
@@ -445,16 +438,6 @@ if(USE_GCC OR USE_CLANG)
   set(CMAKE_REQUIRED_FLAGS ${ORIG_CMAKE_REQUIRED_FLAGS})
 
 # Urho3D - we rely on GenerateExportHeader CMake module for configuring GCC/Clang visibility support
-#  set(CMAKE_REQUIRED_FLAGS "-fvisibility=hidden -Werror")
-#  check_c_source_compiles("
-#      #if !defined(__GNUC__) || __GNUC__ < 4
-#      #error SDL only uses visibility attributes in GCC 4 or newer
-#      #endif
-#      int main(int argc, char **argv) {}" HAVE_GCC_FVISIBILITY)
-#  if(HAVE_GCC_FVISIBILITY)
-#    list(APPEND EXTRA_CFLAGS "-fvisibility=hidden")
-#  endif()
-#  set(CMAKE_REQUIRED_FLAGS ${ORIG_CMAKE_REQUIRED_FLAGS})
 
   check_c_compiler_flag(-Wall HAVE_GCC_WALL)
   if(HAVE_GCC_WALL)
@@ -482,140 +465,21 @@ if(ASSEMBLY)
     # TODO: Those all seem to be quite GCC specific - needs to be
     # reworked for better compiler support
     set(HAVE_ASSEMBLY TRUE)
-    if(MMX)
-      set(CMAKE_REQUIRED_FLAGS "-mmmx")
-      check_c_source_compiles("
-          #ifdef __MINGW32__
-          #include <_mingw.h>
-          #ifdef __MINGW64_VERSION_MAJOR
-          #include <intrin.h>
-          #else
-          #include <mmintrin.h>
-          #endif
-          #else
-          #include <mmintrin.h>
-          #endif
-          #ifndef __MMX__
-          #error Assembler CPP flag not enabled
-          #endif
-          int main(int argc, char **argv) { }" HAVE_MMX)
-      if(HAVE_MMX)
-        list(APPEND EXTRA_CFLAGS "-mmmx")
-      endif()
-      set(CMAKE_REQUIRED_FLAGS ${ORIG_CMAKE_REQUIRED_FLAGS})
-    endif()
 
-    if(3DNOW)
-      set(CMAKE_REQUIRED_FLAGS "-m3dnow")
-      check_c_source_compiles("
-          #include <mm3dnow.h>
-          #ifndef __3dNOW__
-          #error Assembler CPP flag not enabled
-          #endif
-          int main(int argc, char **argv) {
-            void *p = 0;
-            _m_prefetch(p);
-          }" HAVE_3DNOW)
-      if(HAVE_3DNOW)
-        list(APPEND EXTRA_CFLAGS "-m3dnow")
-      endif()
-      set(CMAKE_REQUIRED_FLAGS ${ORIG_CMAKE_REQUIRED_FLAGS})
-    endif()
+    # Urho3D - move the altivec, mmx, 3dnow, sse and sse2 checks to Urho3D common module which then configure the compiler flags globally
 
-    if(SSE)
-      set(CMAKE_REQUIRED_FLAGS "-msse")
-      check_c_source_compiles("
-          #ifdef __MINGW32__
-          #include <_mingw.h>
-          #ifdef __MINGW64_VERSION_MAJOR
-          #include <intrin.h>
-          #else
-          #include <xmmintrin.h>
-          #endif
-          #else
-          #include <xmmintrin.h>
-          #endif
-          #ifndef __SSE__
-          #error Assembler CPP flag not enabled
-          #endif
-          int main(int argc, char **argv) { }" HAVE_SSE)
-      if(HAVE_SSE)
-        list(APPEND EXTRA_CFLAGS "-msse")
-      endif()
-      set(CMAKE_REQUIRED_FLAGS ${ORIG_CMAKE_REQUIRED_FLAGS})
-    endif()
+    # Urho3D - bug fix - do not use "-mfpmath=387" in EXTRA_CFLAGS, instead let the compiler to choose what's the best by itself (i.e. '387' for x86 and 'sse' for x86_64) and also to keep SDL library being built with the same option as all the other Urho3D software; besides the '387' is invalid when targeting arm64
 
-    if(SSE2)
-      set(CMAKE_REQUIRED_FLAGS "-msse2")
-      check_c_source_compiles("
-          #ifdef __MINGW32__
-          #include <_mingw.h>
-          #ifdef __MINGW64_VERSION_MAJOR
-          #include <intrin.h>
-          #else
-          #include <emmintrin.h>
-          #endif
-          #else
-          #include <emmintrin.h>
-          #endif
-          #ifndef __SSE2__
-          #error Assembler CPP flag not enabled
-          #endif
-          int main(int argc, char **argv) { }" HAVE_SSE2)
-      if(HAVE_SSE2)
-        list(APPEND EXTRA_CFLAGS "-msse2")
-      endif()
-      set(CMAKE_REQUIRED_FLAGS ${ORIG_CMAKE_REQUIRED_FLAGS})
-    endif()
+    # Urho3D - commented out the HAVE_SSEMATH variable as it is not being used anywhere currently; furthermore compiler already emits __SSE_MATH__ or __SSE2_MATH__ as necessary on x86_64 ABI only; so instead of using HAVE_SSEMATH variable, we should actually use the __SSE_MATH__ or __SSE2_MATH__ compiler define if that is the original intention of having this variable
 
-    if(SSEMATH)
-      if(SSE OR SSE2)
-        if(USE_GCC)
-          list(APPEND EXTRA_CFLAGS "-mfpmath=387")
-        endif()
-        set(HAVE_SSEMATH TRUE)
-      endif()
-    endif()
-
-    if(ALTIVEC)
-      set(CMAKE_REQUIRED_FLAGS "-maltivec")
-      check_c_source_compiles("
-          #include <altivec.h>
-          vector unsigned int vzero() {
-              return vec_splat_u32(0);
-          }
-          int main(int argc, char **argv) { }" HAVE_ALTIVEC_H_HDR)
-      check_c_source_compiles("
-          vector unsigned int vzero() {
-              return vec_splat_u32(0);
-          }
-          int main(int argc, char **argv) { }" HAVE_ALTIVEC)
-      set(CMAKE_REQUIRED_FLAGS ${ORIG_CMAKE_REQUIRED_FLAGS})
-      if(HAVE_ALTIVEC OR HAVE_ALTIVEC_H_HDR)
-        set(HAVE_ALTIVEC TRUE) # if only HAVE_ALTIVEC_H_HDR is set
-        list(APPEND EXTRA_CFLAGS "-maltivec")
-        set(SDL_ALTIVEC_BLITTERS 1)
-        if(HAVE_ALTIVEC_H_HDR)
-          set(HAVE_ALTIVEC_H 1)
-        endif()
-      endif()
+    if(URHO3D_ALTIVEC)
+      set(SDL_ALTIVEC_BLITTERS 1)
     endif()
   elseif(MSVC_VERSION GREATER 1500)
     # TODO: SDL_cpuinfo.h needs to support the user's configuration wish
-    # for MSVC - right now it is always activated
-    if(NOT ARCH_64)
-      set(HAVE_MMX TRUE)
-      set(HAVE_3DNOW TRUE)
-    endif()
-    set(HAVE_SSE TRUE)
-    set(HAVE_SSE2 TRUE)
+    # Urho3D - move the HAVE_MMX, HAVE_3DNOW, HAVE_SSE and HAVE_SSE2 initialization to Urho3D common module
     set(SDL_ASSEMBLY_ROUTINES 1)
   endif()
-# TODO:
-#else()
-#  if(USE_GCC OR USE_CLANG)
-#    list(APPEND EXTRA_CFLAGS "-mno-sse" "-mno-sse2" "-mno-mmx")
-#  endif()
 endif()
 
 # TODO: Can't deactivate on FreeBSD? w/o LIBC, SDL_stdinc.h can't define
@@ -943,7 +807,7 @@ elseif(UNIX AND NOT APPLE)
       set(SDL_INPUT_LINUXKD 1)
     endif()
 
-    # Urho3D - bug fix - do not use chekc_include_file() command for detection as it only works for host environment and not for rooted environment when cross-compiling
+    # Urho3D - bug fix - do not use check_include_file() command for detection as it only works for host environment and not for rooted environment when cross-compiling
     find_path (HAVE_LIBUDEV_H NAMES libudev.h)
     find_path (HAVE_DBUS_DBUS_H NAMES dbus/dbus.h PATH_SUFFIXES dbus-1.0)
     if (URHO3D_64BIT)   # Cater for both 32/64bit Redhat-based and Debian-based distros
@@ -1049,14 +913,7 @@ elseif(WINDOWS)
   file(GLOB CORE_SOURCES ${SDL2_SOURCE_DIR}/src/core/windows/*.c)
   set(SOURCE_FILES ${SOURCE_FILES} ${CORE_SOURCES})
 
-# Urho3D - commented out as we have configured MSVC compiler flags globally
-#  if(MSVC)
-#    # Prevent codegen that would use the VC runtime libraries.
-#    add_definitions(/GS-)
-#    if(NOT ARCH_64)
-#      add_definitions(/arch:SSE)
-#    endif()
-#  endif()
+# Urho3D - commented out MSVC-specific compiler flags setup as we have configured MSVC compiler flags globally in Urho3D common module
 
   # Check for DirectX
   if(DIRECTX)
