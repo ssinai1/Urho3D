@@ -40,6 +40,6 @@ if (NOT FUSIONSOUND_VERSION AND FUSIONSOUND_INCLUDE_DIRS AND EXISTS ${FUSIONSOUN
 endif ()
 
 include (FindPackageHandleStandardArgs)
-find_package_handle_standard_args (FusionSound REQUIRED_VARS FUSIONSOUND_LIBRARIES FUSIONSOUND_INCLUDE_DIRS FAIL_MESSAGE "Could NOT find FusionSound development library")
+find_package_handle_standard_args (FusionSound REQUIRED_VARS FUSIONSOUND_LIBRARIES FUSIONSOUND_INCLUDE_DIRS VERSION_VAR FUSIONSOUND_VERSION FAIL_MESSAGE "Could NOT find FusionSound development library")
 
 mark_as_advanced (FUSIONSOUND_INCLUDE_DIRS FUSIONSOUND_LIBRARIES)

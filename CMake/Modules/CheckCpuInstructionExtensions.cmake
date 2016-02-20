@@ -30,24 +30,35 @@
 #  HAVE_ALTIVEC
 #
 
+include (CheckCSourceCompiles)
+set (ORIG_CMAKE_REQUIRED_FLAGS ${CMAKE_REQUIRED_FLAGS})
 if (MSVC OR URHO3D_64BIT)
     # In our documentation we have already declared that we only support CPU with SSE2 extension on Windows platform, so we can safely hard-code these for MSVC compiler
-    set (HAVE_MMX TRUE)
-    set (HAVE_3DNOW TRUE)
-    set (HAVE_SSE TRUE)
-    set (HAVE_SSE2 TRUE)
+    foreach (VAR HAVE_MMX HAVE_SSE HAVE_SSE2)
+        set (${VAR} TRUE)
+    endforeach ()
+    # As newer CPUs from AMD do not support 3DNow! anymore, we cannot make any assumption for 3DNow! extension check
+    set (CMAKE_REQUIRED_FLAGS "-m3dnow")
+    check_c_source_compiles ("
+        #include <mm3dnow.h>
+        #ifndef __3dNOW__
+        #error Assembler CPP flag not enabled
+        #endif
+        int main(int argc, char **argv) {
+        void *p = 0;
+        _m_prefetch(p);
+        }" HAVE_3DNOW)
+    foreach (VAR HAVE_ALTIVEC_H HAVE_ALTIVEC)
+        set (${VAR} FALSE)
+    endforeach ()
 elseif (ARM)
-    set (HAVE_MMX FALSE)
-    set (HAVE_3DNOW FALSE)
-    set (HAVE_SSE FALSE)
-    set (HAVE_SSE2 FALSE)
+    foreach (VAR HAVE_MMX HAVE_3DNOW HAVE_SSE HAVE_SSE2 HAVE_ALTIVEC_H HAVE_ALTIVEC)
+        set (${VAR} FALSE)
+    endforeach ()
 else ()
-    # Credit - the following CPU instruction extension checks are shamefully copied from SDL's CMakeLists.txt
     # Windows platform using MinGW compiler toolchain may or may not pass these checks depends on the MinGW compiler version being used
-    set (ORIG_CMAKE_REQUIRED_FLAGS ${CMAKE_REQUIRED_FLAGS})
-
-    include (CheckCSourceCompiles)
-
+    # Credit - the following CPU instruction extension checks are shamefully copied from SDL's CMakeLists.txt
+    # MMX extension check
     set (CMAKE_REQUIRED_FLAGS "-mmmx")
     check_c_source_compiles ("
         #ifdef __MINGW32__
@@ -64,7 +75,7 @@ else ()
         #error Assembler CPP flag not enabled
         #endif
         int main(int argc, char **argv) { }" HAVE_MMX)
-
+    # 3DNow! extension check
     set (CMAKE_REQUIRED_FLAGS "-m3dnow")
     check_c_source_compiles ("
         #include <mm3dnow.h>
@@ -75,7 +86,7 @@ else ()
         void *p = 0;
         _m_prefetch(p);
         }" HAVE_3DNOW)
-
+    # SSE extension check
     set (CMAKE_REQUIRED_FLAGS -msse)
     check_c_source_compiles ("
         #ifdef __MINGW32__
@@ -92,7 +103,7 @@ else ()
         #error Assembler CPP flag not enabled
         #endif
         int main(int argc, char **argv) { }" HAVE_SSE)
-
+    # SSE2 extension check
     set (CMAKE_REQUIRED_FLAGS "-msse2")
     check_c_source_compiles ("
         #ifdef __MINGW32__
@@ -109,23 +120,21 @@ else ()
         #error Assembler CPP flag not enabled
         #endif
         int main(int argc, char **argv) { }" HAVE_SSE2)
-
-    # For completeness sake, although currently we do not support PowerPC
+    # AltiVec extension check - for completeness sake as currently we do not support PowerPC
     set(CMAKE_REQUIRED_FLAGS "-maltivec")
     check_c_source_compiles ("
-          #include <altivec.h>
-          vector unsigned int vzero() {
-              return vec_splat_u32(0);
-          }
-          int main(int argc, char **argv) { }" HAVE_ALTIVEC_H)
+        #include <altivec.h>
+        vector unsigned int vzero() {
+            return vec_splat_u32(0);
+        }
+        int main(int argc, char **argv) { }" HAVE_ALTIVEC_H)
     check_c_source_compiles ("
-          vector unsigned int vzero() {
-              return vec_splat_u32(0);
-          }
-          int main(int argc, char **argv) { }" HAVE_ALTIVEC)
+        vector unsigned int vzero() {
+            return vec_splat_u32(0);
+        }
+        int main(int argc, char **argv) { }" HAVE_ALTIVEC)
     if (HAVE_ALTIVEC_H AND NOT HAVE_ALTIVEC)
         set (HAVE_ALTIVEC TRUE) # if only HAVE_ALTIVEC_H is set
     endif ()
-
-    set (CMAKE_REQUIRED_FLAGS ${ORIG_CMAKE_REQUIRED_FLAGS})
 endif ()
+set (CMAKE_REQUIRED_FLAGS ${ORIG_CMAKE_REQUIRED_FLAGS})

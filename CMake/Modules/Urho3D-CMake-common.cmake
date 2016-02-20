@@ -149,6 +149,8 @@ if (RPI)
     find_package (VideoCore REQUIRED)
     include_directories (${VIDEOCORE_INCLUDE_DIRS})
 endif ()
+# Need to perform the CPU SIMD instruction extensions check for Urho3D project as well as downstream projects using this common module
+include (CheckCpuInstructionExtensions)
 if (CMAKE_PROJECT_NAME STREQUAL Urho3D)
     set (URHO3D_LIB_TYPE STATIC CACHE STRING "Specify Urho3D library type, possible values are STATIC (default) and SHARED")
     # The URHO3D_OPENGL option is not available on non-Windows platforms as they should always use OpenGL, i.e. URHO3D_OPENGL variable will always be forced to TRUE
@@ -165,7 +167,6 @@ if (CMAKE_PROJECT_NAME STREQUAL Urho3D)
     # On Windows platform Direct3D11 can be optionally chosen
     # Using Direct3D11 on non-MSVC compiler may require copying and renaming Microsoft official libraries (.lib to .a), else link failures or non-functioning graphics may result
     cmake_dependent_option (URHO3D_D3D11 "Use Direct3D11 instead of Direct3D9 (Windows platform only); overrides URHO3D_OPENGL option" FALSE "WIN32" FALSE)
-    include (CheckCpuInstructionExtensions)
     # Set the default to true for all the platforms that support SSE extension except specificially stated otherwise below
     if (HAVE_SSE OR HAVE_SSE2)
         set (URHO3D_DEFAULT_SSE TRUE)
