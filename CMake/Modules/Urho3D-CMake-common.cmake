@@ -1514,16 +1514,18 @@ macro (setup_test)
     endif ()
 endmacro ()
 
+# *** THIS IS A DEPRECATED MACRO ***
 # Macro for defining external library dependencies
 # The purpose of this macro is emulate CMake to set the external library dependencies transitively
 # It works for both targets setup within Urho3D project and downstream projects that uses Urho3D as external static/shared library
+# *** THIS IS A DEPRECATED MACRO ***
 macro (define_dependency_libs TARGET)
     # ThirdParty/SDL external dependency
     if (${TARGET} MATCHES SDL|Urho3D)
         if (WIN32)
             list (APPEND LIBS user32 gdi32 winmm imm32 ole32 oleaut32 version uuid)
         elseif (APPLE)
-            list (APPEND LIBS dl)
+            list (APPEND LIBS iconv)
         elseif (ANDROID)
             list (APPEND LIBS dl log android)
         else ()
