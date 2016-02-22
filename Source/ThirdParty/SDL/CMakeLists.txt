@@ -510,6 +510,13 @@ if(LIBC)
     set(STDC_HEADERS 1)
   else()
     set(HAVE_LIBC TRUE)
+    # Urho3D - bug fix - starting since Raspbian Jessie the __USE_EXTERN_INLINE is defined in <features.h> causing stdlib.h to look for <bits/stdlib-bsearch.h> which is not in the system header search path on Raspberry-Pi platform
+    if (RPI)
+      find_path (STDLIB_BITS_INCLUDE_DIR NAMES bits/stdlib-bsearch.h DOC "Raspberry-Pi stdlib's bits include directory")
+      if (STDLIB_BITS_INCLUDE_DIR)
+        include_directories (${STDLIB_BITS_INCLUDE_DIR})
+      endif ()
+    endif ()
     check_include_file(sys/types.h HAVE_SYS_TYPES_H)
     foreach(_HEADER
             stdio.h stdlib.h stddef.h stdarg.h malloc.h memory.h string.h
