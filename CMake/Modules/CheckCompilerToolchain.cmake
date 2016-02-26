@@ -20,8 +20,20 @@
 # THE SOFTWARE.
 #
 
-# Check CPU SIMD instruction extensions support
+# Check the chosen compiler toolchain in the build tree
 #
+# Native ABI:
+#  NATIVE_64BIT
+#
+# Target architecture:
+#  ARM
+#  RPI
+#  POWERPC
+#
+# Compiler version in major.minor.patch format:
+#  COMPILER_VERSION
+#
+# CPU SIMD instruction extensions support:
 #  HAVE_MMX
 #  HAVE_3DNOW
 #  HAVE_SSE
@@ -55,13 +67,46 @@ if (MSVC)
     else ()
         set (NATIVE_64BIT 0)
     endif ()
+    # Determine MSVC compiler version based on CMake informational variables
+    if (NOT DEFINED COMPILER_VERSION)
+        # TODO: fix this ugly hardcoding that needs to be constantly maintained
+        if (MSVC_VERSION EQUAL 1200)
+            set (COMPILER_VERSION 6.0)
+        elseif (MSVC_VERSION EQUAL 1300)
+            set (COMPILER_VERSION 7.0)
+        elseif (MSVC_VERSION EQUAL 1310)
+            set (COMPILER_VERSION 7.1)
+        elseif (MSVC_VERSION EQUAL 1400)
+            set (COMPILER_VERSION 8.0)
+        elseif (MSVC_VERSION EQUAL 1500)
+            set (COMPILER_VERSION 9.0)
+        elseif (MSVC_VERSION EQUAL 1600)
+            set (COMPILER_VERSION 10.0)
+        elseif (MSVC_VERSION EQUAL 1700)
+            set (COMPILER_VERSION 11.0)
+        elseif (MSVC_VERSION EQUAL 1800)
+            set (COMPILER_VERSION 12.0)
+        elseif (MSVC_VERSION EQUAL 1900)
+            set (COMPILER_VERSION 14.0)
+        elseif (MSVC_VERSION GREATER 1900)
+            set (COMPILER_VERSION 14.0+)
+        else ()
+            set (COMPILER_VERSION 6.0-)
+        endif ()
+        set (COMPILER_VERSION ${COMPILER_VERSION} CACHE INTERNAL "MSVC Compiler version")
+    endif ()
 else ()
     # On non-MSVC compiler, default to build using native ABI of the chosen compiler toolchain in the build tree
-    check_native_define ("__(x86_64|aarch64)__" NATIVE_64BIT)
+    check_native_define ("__(x86_|aarch|ppc|PPC|powerpc|POWERPC)64__" NATIVE_64BIT)
     # Android arm64 compiler only emits __aarch64__ while iOS arm64 emits __aarch64__, __arm64__, and __arm__; for armv7a all emit __arm__
     check_native_define ("__(arm|aarch64)__" ARM)
     # For completeness sake as currently we do not support PowerPC (yet)
-    check_native_define ("__(ppc|PPC|powerpc|POWERPC)__" POWERPC)
+    check_native_define ("__(ppc|PPC|powerpc|POWERPC)(64)*__" POWERPC)
+    # Check if the target arm platform is currently supported
+    if (ARM AND NOT ANDROID AND NOT RPI AND NOT IOS AND NOT TVOS)
+        # TODO: check the uname of the host system for the telltale sign of RPI, just in case this is a native build on the device itself
+        message (FATAL_ERROR "Unsupported arm target architecture")
+    endif ()
     # GCC/Clang and all their derivatives should understand this command line option to get the compiler version
     if (NOT DEFINED COMPILER_VERSION)
         execute_process (COMMAND ${CMAKE_C_COMPILER} -dumpversion OUTPUT_VARIABLE COMPILER_VERSION ERROR_QUIET OUTPUT_STRIP_TRAILING_WHITESPACE)
@@ -106,9 +151,7 @@ if (NOT ARM)
     endif ()
     # For completeness sake as currently we do not support PowerPC (yet)
     if (POWERPC)
-        if (NOT DEFINED HAVE_ALTIVEC)
-            check_extension (altivec)
-        endif ()
+        check_extension (altivec)
     endif ()
 endif ()
 

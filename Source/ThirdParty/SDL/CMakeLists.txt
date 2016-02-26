@@ -46,15 +46,10 @@
 # Urho3D - define target name
 set (TARGET_NAME SDL)
 
-# Urho3D - commented out as we support both out-of- and in- source tree builds
-#if(${CMAKE_SOURCE_DIR} STREQUAL ${CMAKE_BINARY_DIR})
-#  message(FATAL_ERROR "Prevented in-tree built. Please create a build directory outside of the SDL source code and call cmake from there")
-#endif()
+# Urho3D - commented out in-source tree build prevention as Urho3D supports both out-of-source and in-source tree builds
 
-# Urho3D - commented out as we want SDL sub-library to remain within Urho3D "umbrella" project
-#cmake_minimum_required(VERSION 2.8)
-#project(SDL2 C)
-# Urho3D - instead, just enable the required language support and set the extra variables associated with project() command
+# Urho3D - commented out setting SDL2 as project name as we want SDL sub-library to remain within Urho3D "umbrella" project
+#          instead, just enable the required language support and set the extra variables associated with project() command
 enable_language (C)
 set (SDL2_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 set (SDL2_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR})
@@ -69,7 +64,6 @@ include(CheckTypeSize)
 include(CheckStructHasMember)
 include(CMakeDependentOption)
 # Urho3D - bug fix - do not use pkg-config tool for detection as it only works for host environment and not for rooted environment when cross-compiling
-#include(FindPkgConfig)
 # Urho3D - append SDL's CMake module directory into our global module search path
 list (APPEND CMAKE_MODULE_PATH ${SDL2_SOURCE_DIR}/cmake)
 include(${SDL2_SOURCE_DIR}/cmake/macros.cmake)
@@ -98,13 +92,11 @@ set(LT_REVISION "${SDL_INTERFACE_AGE}")
 set(LT_RELEASE "${SDL_MAJOR_VERSION}.${SDL_MINOR_VERSION}")
 set(LT_VERSION "${LT_MAJOR}.${LT_AGE}.${LT_REVISION}")
 
-# Urho3D - no debug print
-#message(STATUS "${LT_VERSION} :: ${LT_AGE} :: ${LT_REVISION} :: ${LT_CURRENT} :: ${LT_RELEASE}")
+# Urho3D - commented out debug print
 
 # General settings & flags
 # Urho3D - commented out LIBRARY_OUTPUT_DIRECTORY configuration so that it does not mess up with our global configuration setup
 # Check for 64 or 32 bit
-set(SIZEOF_VOIDP ${CMAKE_SIZEOF_VOID_P})
 # Urho3D - bug fix - using CMAKE_SIZEOF_VOID_P is not accurate in a situation where a multilib-capable compiler is chosen and user has opted to use non-native ABI; instead using URHO3D_64BIT build option as it also captures the user intention
 if(URHO3D_64BIT)
   set(ARCH_64 TRUE)
@@ -201,39 +193,7 @@ else()
   set(OPT_DEF_ASM FALSE)
 endif()
 
-# Default flags, if not set otherwise
-if("$ENV{CFLAGS}" STREQUAL "")
-# Urho3D - commented out as we have configured compiler flags as we want globally
-#  if(USE_GCC OR USE_CLANG)
-#    set(CMAKE_C_FLAGS "-g -O3")
-#  endif()
-else()
-#  set(CMAKE_C_FLAGS "$ENV{CFLAGS}")
-  list(APPEND EXTRA_CFLAGS "$ENV{CFLAGS}")
-endif()
-if(NOT ("$ENV{CFLAGS}" STREQUAL "")) # Hackish, but does the trick on Win32
-  list(APPEND EXTRA_LDFLAGS "$ENV{LDFLAGS}")
-endif()
-
-#if(MSVC)
-#  option(FORCE_STATIC_VCRT "Force /MT for static VC runtimes" OFF)
-#  if(FORCE_STATIC_VCRT)
-#    foreach(flag_var
-#        CMAKE_C_FLAGS CMAKE_C_FLAGS_DEBUG CMAKE_C_FLAGS_RELEASE
-#        CMAKE_C_FLAGS_MINSIZEREL CMAKE_C_FLAGS_RELWITHDEBINFO)
-#      if(${flag_var} MATCHES "/MD")
-#        string(REGEX REPLACE "/MD" "/MT" ${flag_var} "${${flag_var}}")
-#      endif()
-#    endforeach()
-#  endif()
-#
-#  # Make sure /RTC1 is disabled, otherwise it will use functions from the CRT
-#  foreach(flag_var
-#      CMAKE_C_FLAGS CMAKE_C_FLAGS_DEBUG CMAKE_C_FLAGS_RELEASE
-#      CMAKE_C_FLAGS_MINSIZEREL CMAKE_C_FLAGS_RELWITHDEBINFO)
-#    string(REGEX REPLACE "/RTC(su|[1su])" "" ${flag_var} "${${flag_var}}")
-#  endforeach(flag_var)
-#endif()
+# Urho3D - commented out compiler/linker flags setup as we have configured all our compiler/linker flags as we want globally
 
 # Those are used for pkg-config and friends, so that the SDL2.pc, sdl2-config,
 # etc. are created correctly.
@@ -245,8 +205,9 @@ set(SDL_CFLAGS "")
 # restore back to that afterwards. For check_function_exists() to work in
 # Emscripten, this value must be at its default value.
 set(ORIG_CMAKE_REQUIRED_FLAGS ${CMAKE_REQUIRED_FLAGS})
-# Urho3D - safe the original CMake global settings
-set(ORIG_CMAKE_REQUIRED_INCLUDES ${CMAKE_REQUIRED_INCLUDES})
+# Urho3D - save the original CMake global settings, do not leave them to chances
+set (ORIG_CMAKE_REQUIRED_INCLUDES ${CMAKE_REQUIRED_INCLUDES})
+set (ORIG_CMAKE_REQUIRED_LIBRARIES ${CMAKE_REQUIRED_LIBRARIES})
 
 if(CYGWIN)
   # We build SDL on cygwin without the UNIX emulation layer
@@ -264,13 +225,12 @@ endif()
 
 add_definitions(-DUSING_GENERATED_CONFIG_H)
 # General includes
-# Urho3D - use 'generated' path suffix for generated config header file (need the suffix as we support both out-of-source in-source build tree)
+# Urho3D - use 'generated' path suffix for generated config header file, the suffic prevents overwriting the header file with the same name in the source tree in case of non out-of-source build tree is being used
 set (INCLUDE_DIRS ${SDL2_BINARY_DIR}/include/generated ${SDL2_SOURCE_DIR}/include)
 
 # All these ENABLED_BY_DEFAULT vars will default to ON if not specified, so
 #  you only need to have a platform override them if they are disabling.
-# Urho3D - it looks like a bug[?] because this variable is already initialized properly in "Compiler info" section above
-#set(OPT_DEF_ASM TRUE)
+# Urho3D - bug fix - commented out double initialization of the OPT_DEF_ASM variable, it has been initialized properly in "Compiler info" section above
 if(EMSCRIPTEN)
   # Set up default values for the currently supported set of subsystems:
   # Emscripten/Javascript does not have assembly support, a dynamic library
@@ -302,6 +262,7 @@ foreach(_SUB ${SDL_SUBSYSTEMS})
   option(SDL_${_OPT} "Enable the ${_SUB} subsystem" ${SDL_${_OPT}_ENABLED_BY_DEFAULT})
 endforeach()
 
+# Urho3D - TODO - put all these options into SDL-specific namespace group, they are littering CMake-gui all over the place as it is now
 option_string(ASSERTIONS "Enable internal sanity checks (auto/disabled/release/enabled/paranoid)" "auto")
 #set_option(DEPENDENCY_TRACKING "Use gcc -MMD -MT dependency tracking" ON)
 set_option(LIBC                "Use the system C library" ${OPT_DEF_LIBC})
@@ -349,7 +310,7 @@ dep_option(VIDEO_WAYLAND_QT_TOUCH  "QtWayland server support for Wayland video d
 dep_option(VIDEO_MIR           "Use Mir video driver" ON "UNIX_SYS AND NOT ANDROID AND NOT RPI" OFF)
 dep_option(MIR_SHARED          "Dynamically load Mir support" ON "VIDEO_MIR" OFF)
 # Urho3D - only enable VIDEO_RPI on Raspberry-Pi platform
-dep_option(VIDEO_RPI           "Use Raspberry Pi video driver" ON "RPI" OFF)
+dep_option(VIDEO_RPI           "Use Raspberry Pi video driver" ON RPI OFF)
 dep_option(X11_SHARED          "Dynamically load X11 support" ON "VIDEO_X11" OFF)
 set(SDL_X11_OPTIONS Xcursor Xinerama XInput Xrandr Xscrnsaver XShape Xvm)
 foreach(_SUB ${SDL_X11_OPTIONS})
@@ -367,12 +328,12 @@ set(SDL_SHARED ${SDL_SHARED_ENABLED_BY_DEFAULT} CACHE BOOL "Build a shared versi
 set(SDL_STATIC ON CACHE BOOL "Build a static version of the library")
 
 # General source files
-# Urho3D - exclude source files from disabled subsystems
 set (SOURCE_FILE_PATTERNS
   ${SDL2_SOURCE_DIR}/src/*.c
-#  ${SDL2_SOURCE_DIR}/src/dynapi/*.c  # Urho3D - disabled dynamic API
+# Urho3D - we always disable dynamic API, so commented out ${SDL2_SOURCE_DIR}/src/dynapi/*.c
   ${SDL2_SOURCE_DIR}/src/libm/*.c
   ${SDL2_SOURCE_DIR}/src/stdlib/*.c)
+# Urho3D - exclude source files from disabled subsystems
 foreach (_SUB ATOMIC AUDIO CPUINFO EVENTS FILE RENDER THREADS TIMERS VIDEO)
   string (TOLOWER ${_SUB} _DIR)
   if (${SDL_${_SUB}})
@@ -437,12 +398,14 @@ if(USE_GCC OR USE_CLANG)
     HAVE_GCC_PREFERRED_STACK_BOUNDARY)
   set(CMAKE_REQUIRED_FLAGS ${ORIG_CMAKE_REQUIRED_FLAGS})
 
-# Urho3D - we rely on GenerateExportHeader CMake module for configuring GCC/Clang visibility support
+# Urho3D - we rely on GenerateExportHeader CMake module for configuring GCC/Clang visibility attribute support
 
   check_c_compiler_flag(-Wall HAVE_GCC_WALL)
   if(HAVE_GCC_WALL)
     list(APPEND EXTRA_CFLAGS "-Wall")
     if(HAIKU)
+      # Urho3D - TODO - since we do not support HAIKU for now, we can leave the cflags configuration here
+      #          However, when we do then it must be moved to our common module and/or just commented out
       set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-multichar")
     endif()
   endif()
@@ -468,7 +431,7 @@ if(ASSEMBLY)
 
     # Urho3D - move the altivec, mmx, 3dnow, sse and sse2 checks to Urho3D common module which then configure the compiler flags globally
 
-    # Urho3D - bug fix - do not use "-mfpmath=387" in EXTRA_CFLAGS, instead let the compiler to choose what's the best by itself (i.e. '387' for x86 and 'sse' for x86_64) and also to keep SDL library being built with the same option as all the other Urho3D software; besides the '387' is invalid when targeting arm64
+    # Urho3D - bug fix - do not use "-mfpmath=387" in EXTRA_CFLAGS, instead let the compiler to choose what's the best by itself (i.e. '387' for x86 and 'sse' for x86_64) and also to keep SDL library being built with the same option as Urho3D library and all the other 3rd-party sub-libraries; besides the '387' is invalid when targeting arm64
 
     # Urho3D - commented out the HAVE_SSEMATH variable as it is not being used anywhere currently; furthermore compiler already emits __SSE_MATH__ or __SSE2_MATH__ as necessary on x86_64 ABI only; so instead of using HAVE_SSEMATH variable, we should actually use the __SSE_MATH__ or __SSE2_MATH__ compiler define if that is the original intention of having this variable
 
@@ -512,7 +475,7 @@ if(LIBC)
     set(HAVE_LIBC TRUE)
     # Urho3D - bug fix - starting since Raspbian Jessie the __USE_EXTERN_INLINE is defined in <features.h> causing stdlib.h to look for <bits/stdlib-bsearch.h> which is not in the system header search path on Raspberry-Pi platform
     if (RPI)
-      find_path (STDLIB_BITS_INCLUDE_DIR NAMES bits/stdlib-bsearch.h DOC "Raspberry-Pi stdlib's bits include directory")
+      find_path (STDLIB_BITS_INCLUDE_DIR NAMES bits/stdlib-bsearch.h PATH_SUFFIXES arm-linux-gnueabihf DOC "Raspberry-Pi stdlib's bits include directory")
       if (STDLIB_BITS_INCLUDE_DIR)
         include_directories (${STDLIB_BITS_INCLUDE_DIR})
       endif ()
@@ -651,8 +614,6 @@ if(ANDROID)
   file(GLOB ANDROID_CORE_SOURCES ${SDL2_SOURCE_DIR}/src/core/android/*.c)
   set(SOURCE_FILES ${SOURCE_FILES} ${ANDROID_CORE_SOURCES})
   # Urho3D - bug fix - SDL_android_main.c will be added later when setting up actual Android targets
-#  file(GLOB ANDROID_MAIN_SOURCES ${SDL2_SOURCE_DIR}/src/main/android/*.c)
-#  set(SOURCE_FILES ${SOURCE_FILES} ${ANDROID_MAIN_SOURCES})
   if(SDL_AUDIO)
     set(SDL_AUDIO_DRIVER_ANDROID 1)
     file(GLOB ANDROID_AUDIO_SOURCES ${SDL2_SOURCE_DIR}/src/audio/android/*.c)
@@ -814,7 +775,7 @@ elseif(UNIX AND NOT APPLE)
       set(SDL_INPUT_LINUXKD 1)
     endif()
 
-    # Urho3D - bug fix - do not use check_include_file() command for detection as it only works for host environment and not for rooted environment when cross-compiling
+    # Urho3D - bug fix - do not use check_include_file() macro for detection as it only works for host environment and not for rooted environment when cross-compiling
     find_path (HAVE_LIBUDEV_H NAMES libudev.h)
     find_path (HAVE_DBUS_DBUS_H NAMES dbus/dbus.h PATH_SUFFIXES dbus-1.0)
     if (URHO3D_64BIT)   # Cater for both 32/64bit Redhat-based and Debian-based distros
@@ -905,8 +866,7 @@ elseif(UNIX AND NOT APPLE)
     elseif(SOLARIS)
       set(SDL_RLD_FLAGS "-R\${libdir}")
     endif()
-    # Urho3D - commented out as we have configured our RPATH setup globally
-    #set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
+    # Urho3D - commented out RPATH setup as we have configured ours globally
     set(HAVE_RPATH TRUE)
   endif()
 
@@ -1326,9 +1286,7 @@ set(EXTRA_CFLAGS ${_EXTRA_CFLAGS})
 
 # Compat helpers for the configuration files
 if(NOT WINDOWS OR CYGWIN)
-# Urho3D - the script won't work on Linux too as it assumes hg to be the version source control which is not the case in our case
-#  # TODO: we need a Windows script, too
-#  execute_process(COMMAND sh ${SDL2_SOURCE_DIR}/build-scripts/updaterev.sh)
+# Urho3D - commeted out the call to updaterev.sh script as it won't work on any platform as it assumes hg to be the version source control which is not the case in our case
 
   set(prefix ${CMAKE_INSTALL_PREFIX})
   set(exec_prefix "\${prefix}")
@@ -1363,18 +1321,12 @@ if(NOT WINDOWS OR CYGWIN)
   # MESSAGE(STATUS "SDL_STATIC_LIBS: ${SDL_STATIC_LIBS}")
 
 # Urho3D - commented out pkg-config configuration file generation
-#  configure_file("${SDL2_SOURCE_DIR}/sdl2.pc.in"
-#    "${SDL2_BINARY_DIR}/sdl2.pc" @ONLY)
-#  configure_file("${SDL2_SOURCE_DIR}/sdl2-config.in"
-#    "${SDL2_BINARY_DIR}/sdl2-config")
-#  configure_file("${SDL2_SOURCE_DIR}/sdl2-config.in"
-#    "${SDL2_BINARY_DIR}/sdl2-config" @ONLY)
-#  configure_file("${SDL2_SOURCE_DIR}/SDL2.spec.in"
-#    "${SDL2_BINARY_DIR}/SDL2.spec" @ONLY)
 endif()
 
 # Urho3D - restore the original CMake global settings
-set(CMAKE_REQUIRED_INCLUDES ${ORIG_CMAKE_REQUIRED_INCLUDES})
+set (CMAKE_REQUIRED_FLAGS ${ORIG_CMAKE_REQUIRED_FLAGS})
+set (CMAKE_REQUIRED_INCLUDES ${ORIG_CMAKE_REQUIRED_INCLUDES})
+set (CMAKE_REQUIRED_LIBRARIES ${ORIG_CMAKE_REQUIRED_LIBRARIES})
 
 # Urho3D - only echo the status once during initial configuration
 if (NOT SDL_INFO_ECHOED_STATUS)
