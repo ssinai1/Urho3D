@@ -20,7 +20,7 @@
 # THE SOFTWARE.
 #
 
-# Find sndio development library
+# Find RoarAudio development library
 #
 #  SNDIO_FOUND
 #  SNDIO_INCLUDE_DIRS
@@ -33,10 +33,10 @@ else ()
     set (SNDIO_LIB_SEARCH_PATH /usr/lib/i386-linux-gnu)
 endif ()
 
-find_path (SNDIO_INCLUDE_DIRS NAMES sndio.h DOC "sndio include directory")
-find_library (SNDIO_LIBRARIES NAMES sndio PATHS ${SNDIO_LIB_SEARCH_PATH} DOC "sndio library")
+find_path (SNDIO_INCLUDE_DIRS NAMES RoarAudio.h DOC "RoarAudio include directory")
+find_library (SNDIO_LIBRARIES NAMES RoarAudio PATHS ${SNDIO_LIB_SEARCH_PATH} DOC "RoarAudio library")
 
 include (FindPackageHandleStandardArgs)
-find_package_handle_standard_args (sndio REQUIRED_VARS SNDIO_LIBRARIES SNDIO_INCLUDE_DIRS FAIL_MESSAGE "Could NOT find sndio development library")
+find_package_handle_standard_args (RoarAudio REQUIRED_VARS SNDIO_LIBRARIES SNDIO_INCLUDE_DIRS FAIL_MESSAGE "Could NOT find RoarAudio development library")
 
 mark_as_advanced (SNDIO_INCLUDE_DIRS SNDIO_LIBRARIES)

@@ -302,12 +302,10 @@ set_option(RPATH               "Use an rpath when linking SDL" ${UNIX_SYS})
 set_option(CLOCK_GETTIME       "Use clock_gettime() instead of gettimeofday()" OFF)
 set_option(INPUT_TSLIB         "Use the Touchscreen library for input" ${UNIX_SYS})
 set_option(VIDEO_X11           "Use X11 video driver" ${UNIX_SYS})
-# Urho3D - hide Wayland option for Android and RPI platforms
-dep_option(VIDEO_WAYLAND       "Use Wayland video driver" ON "UNIX_SYS AND NOT ANDROID AND NOT RPI" OFF)
+dep_option(VIDEO_WAYLAND       "Use Wayland video driver" ON UNIX_SYS OFF)
 dep_option(WAYLAND_SHARED      "Dynamically load Wayland support" ON "VIDEO_WAYLAND" OFF)
 dep_option(VIDEO_WAYLAND_QT_TOUCH  "QtWayland server support for Wayland video driver" ON "VIDEO_WAYLAND" OFF)
-# Urho3D - hide Mir option for Android and RPI platforms
-dep_option(VIDEO_MIR           "Use Mir video driver" ON "UNIX_SYS AND NOT ANDROID AND NOT RPI" OFF)
+dep_option(VIDEO_MIR           "Use Mir video driver" ON UNIX_SYS OFF)
 dep_option(MIR_SHARED          "Dynamically load Mir support" ON "VIDEO_MIR" OFF)
 # Urho3D - only enable VIDEO_RPI on Raspberry-Pi platform
 dep_option(VIDEO_RPI           "Use Raspberry Pi video driver" ON RPI OFF)
@@ -480,7 +478,19 @@ if(LIBC)
         include_directories (${STDLIB_BITS_INCLUDE_DIR})
       endif ()
     endif ()
+    # Urho3D - bug fix - when cross-compiling the headers are rooted, either use "--sysroot" compiler flag or use CMAKE_REQUIRED_INCLUDES (e.g. on RPI) to cater for it
+    set (CMAKE_REQUIRED_INCLUDES_SYS_TYPES_SAVED ${CMAKE_REQUIRED_INCLUDES})
+    if (CMAKE_CROSSCOMPILING AND NOT "${CMAKE_C_FLAGS} ${CMAKE_REQUIRED_FLAGS}" MATCHES sysroot)
+      find_path (SYS_TYPES_H_INCLUDE_DIRS NAMES sys/types.h)
+      if (SYS_TYPES_H_INCLUDE_DIRS)
+        # Assume the header search path has not been adjusted elsewhere yet, there is no harm anyway when a same entry is added twice into the list
+        list (APPEND CMAKE_REQUIRED_INCLUDES ${SYS_TYPES_H_INCLUDE_DIRS})
+      endif ()
+    endif ()
     check_include_file(sys/types.h HAVE_SYS_TYPES_H)
+    set (CMAKE_REQUIRED_INCLUDES ${CMAKE_REQUIRED_INCLUDES_SYS_TYPES_SAVED})
+    # Urho3D - no fix required - it seems all the compiler toolchains (native and X-compiling) that have been tested are able to find these headers correctly
+    #          Android NDK is able to find these headers with the help of "--sysroot" compiler flags, while others like MinGW and Linaro GCC for RPI work out of box
     foreach(_HEADER
             stdio.h stdlib.h stddef.h stdarg.h malloc.h memory.h string.h
             strings.h inttypes.h stdint.h ctype.h math.h iconv.h signal.h)
@@ -488,14 +498,16 @@ if(LIBC)
       string(REPLACE "." "_" _HAVE_H ${_UPPER})
       check_include_file("${_HEADER}" ${_HAVE_H})
     endforeach()
-
-    check_include_files("dlfcn.h;stdint.h;stddef.h;inttypes.h;stdlib.h;strings.h;string.h;float.h" STDC_HEADERS)
+    # Urho3D - bug fix - MinGW has standard-C headers, except dlfcn.h
+    set (CHECK_STDC_HEADERS stdint.h stddef.h inttypes.h stdlib.h strings.h string.h float.h)
+    if (NOT MINGW)
+      list (APPEND CHECK_STDC_HEADERS dlfcn.h)
+    endif ()
+    check_include_files("${CHECK_STDC_HEADERS}" STDC_HEADERS)   # Stringify the INCLUDE list variable as this macro does not expect to receive a list
     check_type_size("size_t" SIZEOF_SIZE_T)
     check_symbol_exists(M_PI math.h HAVE_M_PI)
-    # TODO: refine the mprotect check
-    check_c_source_compiles("#include <sys/types.h>
-                             #include <sys/mman.h>
-                             int main() { }" HAVE_MPROTECT)
+    # Urho3D - for consistency sake use check_include_file() to check for HAVE_MPROTECT
+    check_include_file (sys/mman.h HAVE_MPROTECT)
     foreach(_FN
             strtod malloc calloc realloc free getenv setenv putenv unsetenv
             qsort abs bcopy memset memcpy memmove memcmp strlen strlcpy strlcat
@@ -530,13 +542,13 @@ if(LIBC)
       set(HAVE_ICONV 1)
     endif()
 
-    if(NOT APPLE)
-      check_include_file(alloca.h HAVE_ALLOCA_H)
-      check_function_exists(alloca HAVE_ALLOCA)
-    else()
-      set(HAVE_ALLOCA_H 1)
-      set(HAVE_ALLOCA 1)
-    endif()
+    # Urho3D - bug fix - cannot use check_function_exists() with alloca; with this bug fixed, the same check should work on Apple too so no more hardcoding
+    check_include_file(alloca.h HAVE_ALLOCA_H)
+    if (HAVE_ALLOCA_H)
+      check_c_source_compiles ("
+        #include <alloca.h>
+        int main(int argc, char** argv) { alloca(0); }" HAVE_ALLOCA)
+    endif ()
 
     check_struct_has_member("struct sigaction" "sa_sigaction" "signal.h" HAVE_SA_SIGACTION)
   endif()
@@ -738,7 +750,9 @@ elseif(UNIX AND NOT APPLE)
     CheckVivante()
   endif()
 
-  if(LINUX)
+  # Urho3D - bug fix - CMake only supports 'Android' as a platform since 3.1.0, prior to that version the CMake/Android toolchain has to masquerade it as 'Linux' platform
+  #          So, we have to make sure Linux input event handling is not being enabled for Android platform when older CMake is used
+  if(LINUX AND NOT ANDROID)
     check_c_source_compiles("
         #include <linux/input.h>
         #ifndef EVIOCGNAME
@@ -775,34 +789,60 @@ elseif(UNIX AND NOT APPLE)
       set(SDL_INPUT_LINUXKD 1)
     endif()
 
-    # Urho3D - bug fix - do not use check_include_file() macro for detection as it only works for host environment and not for rooted environment when cross-compiling
-    find_path (HAVE_LIBUDEV_H NAMES libudev.h)
-    find_path (HAVE_DBUS_DBUS_H NAMES dbus/dbus.h PATH_SUFFIXES dbus-1.0)
-    if (URHO3D_64BIT)   # Cater for both 32/64bit Redhat-based and Debian-based distros
+    # Urho3D - bug fix - when cross-compiling the headers are rooted, either use "--sysroot" compiler flag or use CMAKE_REQUIRED_INCLUDES (e.g. on RPI) to cater for it
+    set (CMAKE_REQUIRED_INCLUDES_UDEV_DBUS_SAVED ${CMAKE_REQUIRED_INCLUDES})
+    if (CMAKE_CROSSCOMPILING AND NOT "${CMAKE_C_FLAGS} ${CMAKE_REQUIRED_FLAGS}" MATCHES sysroot)
+      find_path (UDEV_H_INCLUDE_DIRS libudev.h)
+      if (UDEV_H_INCLUDE_DIRS)
+        list (APPEND CMAKE_REQUIRED_INCLUDES ${UDEV_H_INCLUDE_DIRS} ${SYS_TYPES_H_INCLUDE_DIRS})
+      endif ()
+    endif ()
+    check_include_file("libudev.h" HAVE_LIBUDEV_H)
+    if (HAVE_LIBUDEV_H AND UDEV_H_INCLUDE_DIRS)
+      include_directories (${UDEV_H_INCLUDE_DIRS})
+    endif ()
+    # Urho3D - bug fix - dbus/dbus.h is installed under path suffix 'dbus-1.0', so the following find_path() is needed even when not cross-compiling
+    find_path (DBUS_H_INCLUDE_DIRS NAMES dbus/dbus.h PATH_SUFFIXES dbus-1.0)
+    # Cater for both 32/64bit Redhat-based/Debian-based distros and 32-bit Raspberry-Pi as dbus-arch-deps header search paths are a little bit unusual
+    # FIXME: Is there a better way than hardcoding these?
+    if (URHO3D_64BIT)
       set (DBUS_INC_SEARCH_PATH /usr/lib64/dbus-1.0/include /usr/lib/x86_64-linux-gnu/dbus-1.0/include)
     else ()
-      set (DBUS_INC_SEARCH_PATH /usr/lib/dbus-1.0/include /usr/lib/i386-linux-gnu/dbus-1.0/include)
+      set (DBUS_INC_SEARCH_PATH /usr/lib/dbus-1.0/include /usr/lib/i386-linux-gnu/dbus-1.0/include /usr/lib/arm-linux-gnueabihf/dbus-1.0/include)
     endif ()
-    find_path (HAVE_DBUS_DBUS_ARCH_DEPS_H NAMES dbus/dbus-arch-deps.h PATHS ${DBUS_INC_SEARCH_PATH})
-    if (HAVE_LIBUDEV_H AND HAVE_DBUS_DBUS_H AND HAVE_DBUS_DBUS_ARCH_DEPS_H)
-      # All or nothing
-      include_directories (${HAVE_LIBUDEV_H} ${HAVE_DBUS_DBUS_H} ${HAVE_DBUS_DBUS_ARCH_DEPS_H})
-    else ()
-      foreach (VAR HAVE_LIBUDEV_H HAVE_DBUS_DBUS_H HAVE_DBUS_DBUS_ARCH_DEPS_H)
-        unset (${VAR} CACHE)
-        unset (${VAR})
-      endforeach()
+    find_path (DBUS_ARCH_DEPS_H_INCLUDE_DIRS NAMES dbus/dbus-arch-deps.h PATHS ${DBUS_INC_SEARCH_PATH})
+    set (CMAKE_REQUIRED_INCLUDES ${CMAKE_REQUIRED_INCLUDES_UDEV_DBUS_SAVED} ${DBUS_H_INCLUDE_DIRS} ${DBUS_ARCH_DEPS_H_INCLUDE_DIRS})
+    check_include_file("dbus/dbus.h" HAVE_DBUS_DBUS_H)
+    if (HAVE_DBUS_DBUS_H AND DBUS_H_INCLUDE_DIRS AND DBUS_ARCH_DEPS_H_INCLUDE_DIRS)
+      include_directories (${DBUS_H_INCLUDE_DIRS} ${DBUS_ARCH_DEPS_H_INCLUDE_DIRS})
     endif ()
+    set (CMAKE_REQUIRED_INCLUDES ${CMAKE_REQUIRED_INCLUDES_UDEV_DBUS_SAVED})
+
+    # Urho3D - bug fix - moved below logic from generic Unix block to Linux-specific block; this also prevents Linux power management from being enabled for Android platform when CMake prior to 3.1.0 is used
+    if(SDL_POWER)
+      set(SDL_POWER_LINUX 1)
+      file(GLOB POWER_SOURCES ${SDL2_SOURCE_DIR}/src/power/linux/*.c)
+      set(SOURCE_FILES ${SOURCE_FILES} ${POWER_SOURCES})
+      set(HAVE_SDL_POWER TRUE)
+    endif()
   endif()
 
   if(INPUT_TSLIB)
-    check_c_source_compiles("
-        #include \"tslib.h\"
-        int main(int argc, char** argv) { }" HAVE_INPUT_TSLIB)
+    # Urho3D - bug fix - when cross-compiling the headers are rooted, either use "--sysroot" compiler flag or use CMAKE_REQUIRED_INCLUDES (e.g. on RPI) to cater for it
+    set (CMAKE_REQUIRED_INCLUDES_TSLIB_SAVED ${CMAKE_REQUIRED_INCLUDES})
+    if (CMAKE_CROSSCOMPILING AND NOT "${CMAKE_C_FLAGS} ${CMAKE_REQUIRED_FLAGS}" MATCHES sysroot)
+      find_path (TSLIB_H_INCLUDE_DIRS NAMES tslib.h)
+      if (TSLIB_H_INCLUDE_DIRS)
+        # Assume the header search path has not been adjusted elsewhere yet, there is no harm anyway when a same entry is added twice into the list
+        list (APPEND CMAKE_REQUIRED_INCLUDES ${TSLIB_H_INCLUDE_DIRS})
+      endif ()
+    endif ()
+    check_include_file (tslib.h HAVE_INPUT_TSLIB)
     if(HAVE_INPUT_TSLIB)
       set(SDL_INPUT_TSLIB 1)
       list(APPEND EXTRA_LIBS ts)
     endif()
+    set (CMAKE_REQUIRED_INCLUDES ${CMAKE_REQUIRED_INCLUDES_TSLIB_SAVED})
   endif()
 
   if(SDL_JOYSTICK)
@@ -830,19 +870,7 @@ elseif(UNIX AND NOT APPLE)
     endif()
   endif()
 
-  check_include_file(linux/version.h HAVE_LINUX_VERSION_H)
-  if(HAVE_LINUX_VERSION_H)
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DHAVE_LINUX_VERSION_H")
-  endif()
-
-  if(SDL_POWER)
-    if(LINUX)
-      set(SDL_POWER_LINUX 1)
-      file(GLOB POWER_SOURCES ${SDL2_SOURCE_DIR}/src/power/linux/*.c)
-      set(SOURCE_FILES ${SOURCE_FILES} ${POWER_SOURCES})
-      set(HAVE_SDL_POWER TRUE)
-    endif()
-  endif()
+  # Urho3D - commented out setting of HAVE_LINUX_VERSION_H compiler define via cflags as that define is not being used at all, besides we prefer add_definitions()
 
   # Urho3D - bug fix - do not use Unix filesystem for Android platform
   if(SDL_FILESYSTEM AND NOT ANDROID)
@@ -871,11 +899,17 @@ elseif(UNIX AND NOT APPLE)
   endif()
 
 elseif(WINDOWS)
-  find_program(WINDRES windres)
+  # Urho3D - bug fix - when using MinGW in cross-compiling build, the windres tool is being prefixed as other GCC cross-compiling tools
+  if (MINGW)
+    if (CMAKE_CROSSCOMPILING)
+      set (WINDRES ${CMAKE_RC_COMPILER})  # The CMAKE_RC_COMPILER variable is already initialized in our CMake/MinGW toolchain file
+    else ()
+      find_program(WINDRES windres)
+    endif ()
+  endif ()
 
-  check_c_source_compiles("
-    #include <windows.h>
-    int main(int argc, char **argv) { }" HAVE_WIN32_CC)
+  # Urho3D - replace the windows.h check by using check_include_file() instead of check_c_source_files()
+  check_include_file (windows.h HAVE_WIN32_CC)
 
   file(GLOB CORE_SOURCES ${SDL2_SOURCE_DIR}/src/core/windows/*.c)
   set(SOURCE_FILES ${SOURCE_FILES} ${CORE_SOURCES})
@@ -894,16 +928,8 @@ elseif(WINDOWS)
       set(CMAKE_REQUIRED_FLAGS "/I\"$ENV{DXSDK_DIR}\\Include\"")
     endif()
 
-    if(HAVE_WIN32_CC)
-      # xinput.h may need windows.h, but doesn't include it itself.
-      check_c_source_compiles("
-        #include <windows.h>
-        #include <xinput.h>
-        int main(int argc, char **argv) { }" HAVE_XINPUT_H)
-    else()
-      check_include_file(xinput.h HAVE_XINPUT_H)
-    endif()
-
+    # Urho3D - simplify the check for xinput.h
+    check_include_file(xinput.h HAVE_XINPUT_H)
     check_include_file(d3d9.h HAVE_D3D_H)
     check_include_file(d3d11_1.h HAVE_D3D11_H)
     check_include_file(ddraw.h HAVE_DDRAW_H)

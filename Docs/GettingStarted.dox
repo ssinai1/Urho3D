@@ -12,9 +12,25 @@ Although all required third-party libraries are included as source code, there a
 
 - For Windows, the June 2010 DirectX SDK needs to be installed. This is not necessary if building on Visual Studio 2012 or newer, which install the Windows SDK with the necessary DirectX files.
 
-- For Linux, the following development packages need to be installed: libx11-dev, libxrandr-dev, libasound2-dev on Debian-based distros; libX11-devel, libXrandr-devel, alsa-lib-devel on RedHat-based distros. Optionally install libpulse-dev (Deb) or pulseaudio-libs-devel (RH) to enable SDL support for PulseAudio. Building as 32-bit on a 64-bit system requires installing also the 32-bit versions of the development libraries.
+- For Linux, the following development packages need to be installed: libx11-dev, libxrandr-dev, libasound2-dev on Debian-based distros; libX11-devel, libXrandr-devel, alsa-lib-devel on RedHat-based distros. Building as 32-bit on a 64-bit system requires installing also the 32-bit versions of the development libraries. Optionally install the following development libraries to enable support for the corresponding software components:
+  + %Database server (disabled by default even when installed, use URHO3D_DATABASE_ODBC build option to enable):
+    - libiodbc2-dev (Debian-based) or libiodbc-devel (RedHat-based) for iODBC driver manager.
+    - unixodbc-dev (Debian-based) unixODBC-devel (RedHat-based) for ODBC driver manager. *Recommended*
+  + Display server:
+    - libdirectfb-dev (DB-based only) for direct frame buffer (DirectFB).
+    - mir-client-platform-mesa-dev and mircommon-dev (Ubuntu only) for Mir.
+    - libwayland-client-devel, libwayland-cursor-devel, and mesa-libwayland-egl-devel (RedHat-based only, pre-installed on Fedora 22+) for Wayland.
+  + %Sound server:
+    - arts-devel (RedHat-based only) for analog real time synthesizer (aRts).
+    - libaudio-dev (Debian-based only) for network audio system (NAS).
+    - libesd0-dev (Debian-based) or esound-devel (RedHat-based) for enlightened sound daemon (ESounD).
+    - libfusionsound-dev (DB-based only, not available on Ubuntu) for FusionSound. Disabled by default even when installed, use SDL_OPT_FUSIONSOUND(_SHARED) build option to enable.
+    - libpulse-dev (Debian-based) or pulseaudio-libs-devel (RedHat-based) for PulseAudio. *Recommended*
+    - libroar-dev (Debian-based only) for RoarAudio (SNDIO).
+  + Misc.:
+    - libts-dev (Debian-based) or tslib-devel (RedHat-based) for touchscreen input.
 
-- For Raspberry Pi, the following development packages need to be installed. On Raspbian: libevdev2, libasound2-dev, and libudev-dev. On Pidora: libevdev, alsa-lib-devel, and systemd-devel. Optionally install libpulse-dev (Raspbian) or pulseaudio-libs-devel (Pidora) to enable SDL support PulseAudio.
+- For Raspberry Pi, the following development packages need to be installed. On Raspbian: libevdev2, libasound2-dev, and libudev-dev. On Pidora: libevdev, alsa-lib-devel, and systemd-devel. The same list of optional development libraries listed above for Linux can also be installed on Raspberry Pi system to enable support for the corresponding software components.
 
 - For Mac OS X, the Xcode developer tools package should include everything necessary. Make sure that the Xcode command line tools are also installed.
 
